@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include <QException>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -79,14 +80,109 @@ void MainWindow::on_newConnection() {
     sendMessage(contact, welcomeMessage);
 }
 
+void MainWindow::on_addContactBtn_clicked() {
+    CreateConnectionWindow* createConnectionWindow = new CreateConnectionWindow(this);
+    QObject::connect(createConnectionWindow, &CreateConnectionWindow::addContact, this, &MainWindow::on_addContact);    // Привязываем вызов функции on_addNewConnection к сигналу addNewConnection
+    createConnectionWindow->open();
+}
+
+void MainWindow::on_addContact(QString ip, quint16 port, Contact* tcpConnection) {
+    if (tcpConnection == nullptr) {
+        tcpConnection = new Contact();
+        QTcpSocket* tcpSocket = new QTcpSocket();
+        tcpConnection->tcpSocket = tcpSocket;
+
+        connect(tcpSocket, &QTcpSocket::readyRead, [this, tcpConnection]() {this->readMessage(tcpConnection);});
+        connect(tcpSocket, &QTcpSocket::disconnected, tcpConnection->tcpSocket, &QTcpSocket::deleteLater); // TODO Не то написано, см. на сайте правильную версию
+        connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(on_tcpSocketError(QAbstractSocket::SocketError)));
+
+        tcpConnection->serverIP = QHostAddress(ip);
+        tcpConnection->serverPort = port;
+        contactList.push_back(tcpConnection);
+        addContactToUI(ip, QString::number(port));
+    }
+}
+
+void MainWindow::addContactToUI(QString ip, QString port) {
+    ui->connectionList->insertItem(ui->connectionList->count(), ip+":" + port);
+    //ui->connectionList->insertRow(ui->connectionList->rowCount());
+    //ui->connectionList->setItem(ui->connectionList->rowCount()-1, 0, new QTableWidgetItem(ip+":" + port));
+}
+
+void MainWindow::on_delContactBtn_clicked() {
+    int currentIndex = ui->connectionList->currentIndex().row();
+    if (currentIndex != -1) {
+        ui->chatArea->clear();
+        delete ui->connectionList->takeItem(currentIndex);
+
+        delete contactList.at(currentIndex)->tcpSocket;
+        delete contactList.at(currentIndex);
+        contactList.removeAt(currentIndex);
+    }
+}
+
+void MainWindow::on_delAllContactsBtn_clicked()
+{
+    ui->chatArea->clear();
+    ui->connectionList->clear();
+    for (auto contact : contactList) {
+        delete contact->tcpSocket;
+        delete contact;
+        contactList.removeOne(contact);
+    }
+}
+
+void MainWindow::on_connectionList_currentItemChanged(QListWidgetItem *current, QListWidgetItem *previous) {
+    int currentIndex = ui->connectionList->currentRow();
+    if (currentIndex != -1) {
+        ui->chatArea->clear();
+        QList<ChatHistory> chatHistoryList = contactList.at(currentIndex)->chatHistoryList;
+        QTcpSocket* currentTcpSocket = contactList.at(currentIndex)->tcpSocket;
+        ui->connectionIPLabel->setText("IP собеседника: " + currentTcpSocket->peerAddress().toString() + ":" + QString::number(currentTcpSocket->peerPort()));
+        QString currentMessage;
+        for (auto& chatHistory : chatHistoryList) {
+            if (chatHistory.isYourMessage) {
+                currentMessage.append("От вас: ");
+            }
+            else {
+                currentMessage.append("От собеседника: ");
+            }
+            currentMessage.append(chatHistory.message + '\n');
+        }
+        ui->chatArea->appendPlainText(currentMessage);
+    }
+}
+
+void MainWindow::on_sendBtn_clicked() {
+    QString message = ui->inputArea->toPlainText();
+    int currentIndex = ui->connectionList->currentIndex().row();
+    if (message != "") {
+        if (currentIndex >= 0 && currentIndex < contactList.size()) {
+            Contact* contact = contactList.at(currentIndex);
+            if (contact->tcpSocket->state() != QAbstractSocket::ConnectedState) {
+                QHostAddress ip = contact->serverIP;
+                uint port = contact->serverPort;
+                contact->tcpSocket->connectToHost(ip, port);
+            }
+            if (contact->tcpSocket->state() == QAbstractSocket::ConnectedState) {
+                sendMessage(contact, message);
+            }
+        }
+        ui->inputArea->clear();
+    }
+}
+
+void MainWindow::on_tcpSocketError(QAbstractSocket::SocketError socketError) {
+    QMessageBox::critical(this, tr("Подключение к серверу"), tr("Невозможно подключиться к серверу.\nКод ошибки: %1").arg(socketError));
+}
+
 void MainWindow::sendMessage(Contact* contact, QString message) {
     QByteArray data;
     QDataStream outStream(&data, QIODevice::ReadWrite);
 
-    outStream << quint32(0);
-    outStream << message;
-    outStream.device()->seek(0);
-    outStream << quint32(data.size() - sizeof(quint32));
+    outStream << quint32(0) << false << message;    // Заносим резерв под размер + флаг запроса истории (false) + сообщение
+    outStream.device()->seek(0);    // Переносим указатель на место резерва
+    outStream << quint32(data.size() - sizeof(bool) - sizeof(quint32)); // Заносим вместо резвера сам размер сообщения без учета резерва (размера) и флага
     contact->tcpSocket->write(data);
 
     ui->chatArea->appendPlainText("От вас: " + message);
@@ -106,6 +202,15 @@ void MainWindow::readMessage(Contact* contact) {
     quint32 messageSize = 0;
     inStream >> messageSize;
 
+    while (contact->tcpSocket->bytesAvailable() < qint64(sizeof(bool))) {
+        if (!contact->tcpSocket->waitForReadyRead()) {
+            return;
+        }
+    }
+
+    bool isHistoryRequest;
+    inStream >> isHistoryRequest;
+
     while (contact->tcpSocket->bytesAvailable() < qint64(messageSize)) {
         if (!contact->tcpSocket->waitForReadyRead()) {
             return;
@@ -120,74 +225,10 @@ void MainWindow::readMessage(Contact* contact) {
         ui->chatArea->appendPlainText("От собеседника: " + buffer);
     }
     else {
-        ui->connectionList->item(senderIndex, 0)->setText(contact->tcpSocket->peerAddress().toString() + QString::number(contact->tcpSocket->peerPort()) + " (!)");
+        QString newContactText = contact->serverIP.toString() + ":" + contact->serverPort + " *";
+        ui->connectionList->currentItem()->setText(newContactText);
     }
 
     ChatHistory chatHistory {false, buffer};
     contact->chatHistoryList.push_back(chatHistory);
-}
-
-void MainWindow::on_tcpSocketError(QAbstractSocket::SocketError socketError) {
-    QMessageBox::critical(this, tr("Подключение к серверу"), tr("Невозможно подключиться к серверу.\n Код ошибки: %1") .arg(socketError));
-}
-
-// Остановился здесь
-void MainWindow::on_addNewConnectionBtn_clicked() {
-    CreateConnectionWindow* createConnectionWindow = new CreateConnectionWindow(this);
-    QObject::connect(createConnectionWindow, &CreateConnectionWindow::addNewConnection, this, &MainWindow::on_addNewConnection);
-    createConnectionWindow->open();
-}
-
-void MainWindow::on_addNewConnection(QString ip, quint16 port, Contact* tcpConnection) {
-    if (tcpConnection == nullptr) {
-        tcpConnection = new Contact();
-        QTcpSocket* tcpSocket = new QTcpSocket(this);        
-        tcpConnection->tcpSocket = tcpSocket;
-        contactList.push_back(tcpConnection);
-        addContactToUI(ip, QString::number(port));
-    }
-
-    connect(tcpConnection->tcpSocket, &QTcpSocket::readyRead, [this, tcpConnection]() {this->readMessage(tcpConnection);});
-    connect(tcpConnection->tcpSocket, &QTcpSocket::disconnected, tcpConnection->tcpSocket, &QTcpSocket::deleteLater); // TODO Не то написано, см. на сайте правильную версию
-    connect(tcpConnection->tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(on_tcpSocketError(QAbstractSocket::SocketError)));
-
-    if (tcpConnection->tcpSocket->state() != QAbstractSocket::ConnectedState) {
-        tcpConnection->tcpSocket->connectToHost(ip, port); // TODO: Можно попробовать вместо displayTcpSocketError try-catch
-    }
-}
-
-void MainWindow::addContactToUI(QString ip, QString port) {
-    ui->connectionList->insertRow(ui->connectionList->rowCount());
-    ui->connectionList->setItem(ui->connectionList->rowCount()-1, 0, new QTableWidgetItem(ip+":" + port));
-}
-
-void MainWindow::on_connectionList_currentItemChanged(QTableWidgetItem *current, QTableWidgetItem *previous)
-{
-    ui->chatArea->clear();
-    int currentIndex = ui->connectionList->currentIndex().row();
-    QList<ChatHistory> chatHistoryList = contactList.at(currentIndex)->chatHistoryList;
-    QTcpSocket* currentTcpSocket = contactList.at(currentIndex)->tcpSocket;
-    ui->connectionIPLabel->setText("IP собеседника: " + currentTcpSocket->peerAddress().toString() + ":" + QString::number(currentTcpSocket->peerPort()));
-    QString currentMessage;
-    for (auto& chatHistory : chatHistoryList) {
-        if (chatHistory.isYourMessage) {
-            currentMessage.append("От вас: ");
-        }
-        else {
-            currentMessage.append("От собеседника: ");
-        }
-        currentMessage.append(chatHistory.message);
-    }
-    ui->chatArea->appendPlainText(currentMessage);
-}
-
-void MainWindow::on_sendBtn_clicked()
-{
-    QString message = ui->inputArea->toPlainText();
-    if (message != "") {
-        int currentIndex = ui->connectionList->currentIndex().row();
-        if (currentIndex >= 0 && currentIndex < contactList.size()) {
-            sendMessage(contactList.at(currentIndex), message);
-        }
-    }
 }

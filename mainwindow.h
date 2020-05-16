@@ -7,7 +7,7 @@
 #include <QNetworkInterface>
 #include <QMessageBox>
 #include <QTcpSocket>
-#include <QTableWidgetItem>
+#include <QListWidgetItem>
 #include "createconnectionwindow.h"
 #include "TcpConnection.h"
 
@@ -24,12 +24,17 @@ public:
     ~MainWindow();
 
 private slots:
-    void on_addNewConnectionBtn_clicked();
+    void on_addContactBtn_clicked();
+    void on_delContactBtn_clicked();
+
     void on_newConnection();
-    void on_addNewConnection(QString ip, quint16 port, Contact* contact = nullptr);
+    void on_addContact(QString ip, quint16 port, Contact* contact = nullptr);
     void on_tcpSocketError(QAbstractSocket::SocketError socketError);
-    void on_connectionList_currentItemChanged(QTableWidgetItem *current, QTableWidgetItem *previous);
     void on_sendBtn_clicked();
+
+    void on_delAllContactsBtn_clicked();
+
+    void on_connectionList_currentItemChanged(QListWidgetItem *current, QListWidgetItem *previous);
 
 private:
     Ui::MainWindow *ui;

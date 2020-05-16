@@ -15,8 +15,8 @@ CreateConnectionWindow::~CreateConnectionWindow()
 
 void CreateConnectionWindow::on_okCancelBtn_accepted()
 {
-    emit addNewConnection(this->ui->IPLine->text(), this->ui->PortLine->text().toUInt());
-    this->close();
+    emit addContact(this->ui->IPLine->text(), this->ui->PortLine->text().toUInt());
+    this->~CreateConnectionWindow();
 }
 
 void CreateConnectionWindow::on_okCancelBtn_rejected()
