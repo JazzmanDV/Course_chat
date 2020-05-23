@@ -89,7 +89,7 @@
 соединения</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="sendBtn">
+   <widget class="QPushButton" name="sendMessageBtn">
     <property name="geometry">
      <rect>
       <x>640</x>
@@ -140,9 +140,9 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>190</x>
+      <x>200</x>
       <y>30</y>
-      <width>581</width>
+      <width>571</width>
       <height>391</height>
      </rect>
     </property>
@@ -150,30 +150,17 @@
      <bool>true</bool>
     </property>
    </widget>
-   <widget class="QLabel" name="connectionIPLabel">
-    <property name="geometry">
-     <rect>
-      <x>190</x>
-      <y>10</y>
-      <width>231</width>
-      <height>16</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>IP собеседника:</string>
-    </property>
-   </widget>
    <widget class="QListWidget" name="connectionList">
     <property name="geometry">
      <rect>
       <x>10</x>
       <y>30</y>
-      <width>171</width>
+      <width>181</width>
       <height>391</height>
      </rect>
     </property>
    </widget>
-   <widget class="QPushButton" name="connectBtn">
+   <widget class="QPushButton" name="disconnectBtn">
     <property name="geometry">
      <rect>
       <x>270</x>
@@ -183,7 +170,8 @@
      </rect>
     </property>
     <property name="text">
-     <string>Соединиться</string>
+     <string>Разорвать
+соединение</string>
     </property>
    </widget>
   </widget>

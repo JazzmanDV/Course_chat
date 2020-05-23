@@ -15,6 +15,7 @@ struct Contact {
     QTcpSocket* tcpSocket;
     QHostAddress serverIP;
     quint16 serverPort;
+    QString socketString;
     QList<ChatHistory> chatHistoryList;
 };
 

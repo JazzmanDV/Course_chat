@@ -21,7 +21,7 @@ private slots:
     void on_okCancelBtn_rejected();
 
 signals:
-    void addContact(QString ip, quint16 port, Contact* contact = nullptr);
+    void addContact(QString ip, quint16 port);
 
 private:
     Ui::CreateConnectionWindow *ui;
