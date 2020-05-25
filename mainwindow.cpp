@@ -134,18 +134,20 @@ void MainWindow::on_newConnection() {
         contactList.push_back(contact);
 
         addContactToUI(contact->socketString);
-        ui->connectionList->item(ui->connectionList->count() - 1)->setText(contact->socketString + " (подключено)");
     }
 
     contact->tcpSocket = newConnection;
-    int row = ui->connectionList->count() - 1;
-    connect(contact->tcpSocket, &QTcpSocket::readyRead, [this, contact]() {this->readMessage(contact);});
-    connect(contact->tcpSocket, &QTcpSocket::disconnected, [this, contact, row]() {this->on_disconnected(contact, row);});
-    connect(contact->tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error), [this, contact]() {this->on_tcpSocketError(contact);});
+    int row = contactList.indexOf(contact);
+
+    connect(contact->tcpSocket, &QTcpSocket::readyRead, [this, contact]() {this->on_readyRead(contact);});
+    //connect(contact->tcpSocket, &QTcpSocket::disconnected, [this, contact, row]() {this->on_disconnected(contact, row);});
+    //connect(contact->tcpSocket, &QTcpSocket::disconnected, contact->tcpSocket, &QTcpSocket::deleteLater);
+    connect(contact->tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error), [this, contact, row]() {this->on_tcpSocketError(contact, row);});
 
     if (ui->connectionList->currentRow() == row) {  // Если текущий контакт выделен, то добавляем в окно переписки "Подключено"
-        ui->chatArea->appendPlainText("\nПодключено\n");
+        ui->chatArea->appendPlainText("Подключено\n");
     }
+    ui->connectionList->item(row)->setText(contact->socketString + " (подключено)");
 
     QMessageBox msgBox;
     msgBox.setWindowTitle("Подключено");
@@ -178,7 +180,8 @@ void MainWindow::on_delContactBtn_clicked() {
     Contact* contact = contactList.at(currentIndex);
 
     if (currentIndex != -1) {   // Если выбран какой-то из контактов, то освобождаем память и убираем запись из connectioList
-        delete contact->tcpSocket;
+        contact->tcpSocket->disconnectFromHost();
+        contact->tcpSocket->deleteLater();
         delete contact;
         contactList.removeAt(currentIndex);
 
@@ -201,36 +204,17 @@ void MainWindow::on_delAllContactsBtn_clicked() {
 void MainWindow::on_connectionList_currentItemChanged(QListWidgetItem *currentItem) {
     int currentIndex = ui->connectionList->currentRow();
     if (currentIndex != -1) {   // Если выбран какой-то из контактов
-        ui->chatArea->clear();
-
         Contact* contact = contactList.at(currentIndex);
 
         QString newItemText = contact->socketString;
         if (contact->tcpSocket != nullptr) {   // Если память выделена по tcpSocket (чтобы не было ошибки)
-            if (contact->tcpSocket->state() == QAbstractSocket::ConnectedState) {  // Если мы соединены по выбранному сокету, то подписываем (connected) и убираем звёздочку, иначе просто убираем звёздочку
+            if (contact->tcpSocket->state() == QAbstractSocket::ConnectedState) {  // Если мы соединены по выбранному сокету, то подписываем (подключено) и убираем звёздочку, иначе просто убираем звёздочку
                 newItemText.append(" (подключено)");
             }
         }
         currentItem->setText(newItemText);
 
-        QList<ChatHistory>& chatHistoryList = contact->chatHistoryList;
-        int counter = 1;
-        for (auto& chatHistory : chatHistoryList) { // Заполняем окно сообщений (chatArea) историей сообщений
-            QString currentMessage;
-            if (chatHistory.isYourMessage) {
-                currentMessage.append("От вас:\n");
-            }
-            else {
-                currentMessage.append("От собеседника:\n");
-            }
-            currentMessage.append(chatHistory.message);
-            // TODO: проверить, нужен ли этот if
-            //if (counter == chatHistoryList.count()) {   // Если это последнее сообщение, то добавляем перенос
-            //    currentMessage.append("\n");
-            //}
-            ui->chatArea->appendPlainText(currentMessage);
-            counter++;
-        }
+        updateChatArea(contact->chatHistoryList);
     }
 }
 
@@ -249,16 +233,16 @@ void MainWindow::on_sendMessageBtn_clicked() {
         if (contact->tcpSocket->state() != QAbstractSocket::ConnectedState) {   // Если сокет не подключен, то подключаемся (без отправки сообщения). Иначе, если сокет подключен, то просто отправляем сообщение
             QHostAddress ip = contact->serverIP;
             quint16 port = contact->serverPort;
+
             contact->tcpSocket->connectToHost(ip, port);
-
-            // TODO: проверить, влияет ли то, что при ошибке подключения у нас не удаляется tcpSocket и несколько раз идут эти connect`ы
-            connect(contact->tcpSocket, &QTcpSocket::readyRead, [this, contact]() {this->readMessage(contact);});
-            connect(contact->tcpSocket, &QTcpSocket::disconnected, [this, contact, currentIndex]() {this->on_disconnected(contact, currentIndex);});
-            connect(contact->tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error), [this, contact]() {this->on_tcpSocketError(contact);});
-
             if (contact->tcpSocket->waitForConnected(3000)) {   // Если мы подключились в течение 3 секунд, то выводим сообщение об успехе, иначе - об ошибке
                 ui->connectionList->item(currentIndex)->setText(contact->socketString + " (подключено)");
-                ui->chatArea->appendPlainText("\nПодключено\n");
+                connect(contact->tcpSocket, &QTcpSocket::readyRead, [this, contact]() {this->on_readyRead(contact);});
+                //connect(contact->tcpSocket, &QTcpSocket::disconnected, [this, contact, currentIndex]() {this->on_disconnected(contact, currentIndex);});
+                //connect(contact->tcpSocket, &QTcpSocket::disconnected, contact->tcpSocket, &QTcpSocket::deleteLater);
+                connect(contact->tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error), [this, contact, currentIndex]() {this->on_tcpSocketError(contact, currentIndex);});
+
+                ui->chatArea->appendPlainText("Подключено\n");
 
                 QMessageBox msgBox;
                 msgBox.setWindowTitle("Подключено");
@@ -266,7 +250,7 @@ void MainWindow::on_sendMessageBtn_clicked() {
                 msgBox.exec();
             }
             else {
-                ui->chatArea->appendPlainText("Ошибка подключения");
+                ui->chatArea->appendPlainText("Ошибка подключения\n");
 
                 QString errorMessage = "Подключение к " + contact->socketString + " не выполнено.\n" + contact->tcpSocket->errorString();
                 QMessageBox::critical(this, "Ошибка подключения", errorMessage);
@@ -278,33 +262,45 @@ void MainWindow::on_sendMessageBtn_clicked() {
         }
         else if (contact->tcpSocket->state() == QAbstractSocket::ConnectedState) {  // Иначе, если сокет подключен, то просто отправляем сообщение
             sendMessage(contact, message);
-            ui->chatArea->appendPlainText("От вас:\n" + message);    // Добавляем сообщение в окно переписки
+            ui->chatArea->appendPlainText("От вас:\n" + message + "\n");    // Добавляем сообщение в окно переписки
             ui->inputArea->clear(); // Очищаем окно ввода сообщений
         }
     }
 }
 
-void MainWindow::on_tcpSocketError(Contact* contact) {
-    // TODO: возможно, стоит выводить сообщение об ошибке здесь, а не в on_sendMessageBtn_clicked
+void MainWindow::on_tcpSocketError(Contact* contact, int row) {
     qDebug() << "1 " << contact->tcpSocket->state();
+    qDebug() << contact->tcpSocket->error();
     qDebug() << "2 " << contact->tcpSocket->errorString();
-    //QMessageBox::critical(this, tr("Подключение к серверу"), tr("Невозможно подключиться к серверу.\nКод ошибки: %1").arg(socketError));
+
+    if (contact->tcpSocket->error() == 1) { // Если хост отключился, то выводим сообщение об этом
+        ui->connectionList->item(row)->setText(contact->socketString);
+        if (row == ui->connectionList->currentRow()) {
+            ui->chatArea->appendPlainText("Отключено\n");
+        }
+        QMessageBox msgBox;
+        msgBox.setWindowTitle("Отключено");
+        msgBox.setText("Отключено от " + contact->socketString);
+        msgBox.exec();
+    }
+    contact->tcpSocket->deleteLater();
 }
 
 void MainWindow::sendMessage(Contact* contact, QString message) {
     QByteArray data;
     QDataStream outStream(&data, QIODevice::ReadWrite);
 
-    outStream << quint32(0) << false << message;    // Заносим резерв под размер + флаг запроса истории (false) + сообщение
+    outStream << quint32(0) << int(0);
+    outStream << message;    // Заносим резерв под размер + тип сообщения 0 (т.е. отправка обычного сообщения) + сообщение
     outStream.device()->seek(0);    // Переносим указатель на место резерва
-    outStream << quint32(data.size() - sizeof(bool) - sizeof(quint32)); // Заносим вместо резерва сам размер сообщения без учета резерва (размера) и флага
+    outStream << quint32(data.size() - sizeof(int) - sizeof(quint32)); // Заносим вместо резерва сам размер сообщения без учета резерва (размера) и типа сообщения
     contact->tcpSocket->write(data);    // Отправляем собеседнику сообщение
 
     ChatHistory chatHistory {true, message};
     contact->chatHistoryList.push_back(chatHistory);
 }
 
-void MainWindow::readMessage(Contact* contact) {
+void MainWindow::on_readyRead(Contact* contact) {
     while (contact->tcpSocket->bytesAvailable() < qint64(sizeof(quint32))) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать размер сообщения
         if (!contact->tcpSocket->waitForReadyRead()) {  // Если не готовы для чтения, то выходим
             return;
@@ -315,39 +311,87 @@ void MainWindow::readMessage(Contact* contact) {
     quint32 messageSize = 0;
     inStream >> messageSize;    // Читаем размер сообщения
 
-    while (contact->tcpSocket->bytesAvailable() < qint64(sizeof(bool))) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать флаг типа сообщения
+    while (contact->tcpSocket->bytesAvailable() < qint64(sizeof(int))) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать тип сообщения
         if (!contact->tcpSocket->waitForReadyRead()) {
             return;
         }
     }
 
-    bool isHistoryRequest;
-    inStream >> isHistoryRequest;    // Читаем флаг
+    int messageType;
+    inStream >> messageType;    // Читаем тип сообщения
 
-    if (isHistoryRequest) {
-
+    if (messageType == 0) {  // Если обычное сообщение, то читаем его
+        readMessage(contact, messageSize, inStream);
     }
-    else {  // Если обычное сообщение, то читаем его
-        while (contact->tcpSocket->bytesAvailable() < qint64(messageSize)) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать сообщение целиком
-            if (!contact->tcpSocket->waitForReadyRead()) {
-                return;
-            }
+    else if (messageType == 1) {    // Если нам пришел запрос истории, то отправляем историю
+        sendHistory(contact);
+    }
+    else if (messageType == 2) {    // Если нам пришла история по нашему запросу истории, то читаем историю
+        readHistory(contact, messageSize, inStream);
+    }
+}
+
+void MainWindow::readMessage(Contact* contact, quint32 messageSize, QDataStream& inStream) {
+    while (contact->tcpSocket->bytesAvailable() < qint64(messageSize)) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать сообщение целиком
+        if (!contact->tcpSocket->waitForReadyRead()) {
+            return;
         }
+    }
 
-        QString message;
-        inStream >> message;    // Читаем сообщение
+    QString message;
+    inStream >> message;    // Читаем сообщение
 
-        int senderIndex = contactList.indexOf(contact);
-        if (senderIndex == ui->connectionList->currentRow()) {  // Если нужное окно с чатом открыто, то добавляем сообщение в чат, иначе включаем индикацию нового сообщения
-            ui->chatArea->appendPlainText("От собеседника:\n" + message);
+    int senderIndex = contactList.indexOf(contact);
+    if (senderIndex == ui->connectionList->currentRow()) {  // Если нужное окно с чатом открыто, то добавляем сообщение в чат, иначе включаем индикацию нового сообщения
+        ui->chatArea->appendPlainText("От собеседника:\n" + message + "\n");
+    }
+    else {
+        QString newContactTitle = "* " + contact->socketString + " (подключено)";
+        ui->connectionList->item(senderIndex)->setText(newContactTitle);
+    }
+
+    ChatHistory chatHistory {false, message};
+    contact->chatHistoryList.push_back(chatHistory);
+}
+
+void MainWindow::readHistory(Contact *contact, quint32 messageSize, QDataStream& inStream) {
+    while (contact->tcpSocket->bytesAvailable() < qint64(messageSize)) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать сообщение целиком
+        if (!contact->tcpSocket->waitForReadyRead()) {
+            return;
+        }
+    }
+
+    contact->chatHistoryList.clear();   // Очищаем всю сохраненную историю, чтобы перезаписать полученной историей
+
+    int chatHistorySize = 0;
+    inStream >> chatHistorySize;
+    for (int i = 0; i < chatHistorySize; i++) {
+        ChatHistory chatHistory;
+        inStream >> chatHistory.isYourMessage >> chatHistory.message;
+        chatHistory.isYourMessage = !chatHistory.isYourMessage; // инвертируем, т.к. для нас этот флаг должен быть обратным
+        contact->chatHistoryList.push_back(chatHistory);
+    }
+
+    int row = contactList.indexOf(contact);
+    int currentRow = ui->connectionList->currentRow();
+    if (row == currentRow) {    // Если выделен контакт, который принимал эту историю сообщений, то надо обновить chatArea (вывести все сообщения из истории)
+        updateChatArea(contact->chatHistoryList);
+    }
+}
+
+void MainWindow::updateChatArea(QList<ChatHistory>& chatHistoryList) {
+    ui->chatArea->clear();
+
+    for (auto& chatHistory : chatHistoryList) { // Заполняем окно сообщений (chatArea) историей сообщений
+        QString currentMessage;
+        if (chatHistory.isYourMessage) {
+            currentMessage.append("От вас:\n");
         }
         else {
-            QString newContactTitle = "* " + contact->socketString + " (connected)";
-            ui->connectionList->item(senderIndex)->setText(newContactTitle);
+            currentMessage.append("От собеседника:\n");
         }
-
-        ChatHistory chatHistory {false, message};
-        contact->chatHistoryList.push_back(chatHistory);
+        currentMessage.append(chatHistory.message + "\n");
+        ui->chatArea->appendPlainText(currentMessage);
     }
 }
 
@@ -357,20 +401,91 @@ void MainWindow::on_disconnectBtn_clicked() {
         Contact* contact = contactList.at(currentRow);
         if (contact->tcpSocket->state() == QAbstractSocket::ConnectedState) {    // Если выбранный сокет находится в подключенном состоянии, то отключаем
             contact->tcpSocket->disconnectFromHost();
+            ui->connectionList->item(currentRow)->setText(contact->socketString);
+            ui->chatArea->appendPlainText("Отключено\n");
+            QMessageBox msgBox;
+            msgBox.setWindowTitle("Отключено");
+            msgBox.setText("Отключено от " + contact->socketString);
+            msgBox.exec();
+            delete contact->tcpSocket;
+            contact->tcpSocket = nullptr;
+            //contact->tcpSocket->deleteLater();
         }
     }
 }
 
 void MainWindow::on_disconnected(Contact* contact, int row) {
-    qDebug() << contact->tcpSocket->errorString();
     delete contact->tcpSocket;
     contact->tcpSocket = nullptr;
+}
 
-    int currentRow = ui->connectionList->currentRow();
-    if (currentRow != -1) {
-        if (currentRow == row) {
-            ui->chatArea->appendPlainText("\nОтключено\n");
+void MainWindow::on_historyRequestBtn_clicked() {
+    int currentIndex = ui->connectionList->currentRow();
+    Contact* contact = contactList.at(currentIndex);
+
+    if (currentIndex != -1) {
+        if (contact->tcpSocket == nullptr) {    // Если это первая попытка подключения, то нужно выделить память под сокет
+            contact->tcpSocket = new QTcpSocket();
+        }
+        if (contact->tcpSocket->state() != QAbstractSocket::ConnectedState && contact->tcpSocket->state() != QAbstractSocket::UnconnectedState) {   // Если сокет не подключен, но и не отключен, то значит, что мы недавно отключались и память была очищена
+            contact->tcpSocket = new QTcpSocket();
+        }
+        if (contact->tcpSocket->state() != QAbstractSocket::ConnectedState) {   // Если сокет не подключен, то подключаемся (без отправки запроса). Иначе, если сокет подключен, то просто отправляем запрос
+            QHostAddress ip = contact->serverIP;
+            quint16 port = contact->serverPort;
+
+            contact->tcpSocket->connectToHost(ip, port);
+            if (contact->tcpSocket->waitForConnected(3000)) {   // Если мы подключились в течение 3 секунд, то выводим сообщение об успехе, иначе - об ошибке
+                ui->connectionList->item(currentIndex)->setText(contact->socketString + " (подключено)");
+                connect(contact->tcpSocket, &QTcpSocket::readyRead, [this, contact]() {this->on_readyRead(contact);});
+                //connect(contact->tcpSocket, &QTcpSocket::disconnected, [this, contact, currentIndex]() {this->on_disconnected(contact, currentIndex);});
+                //connect(contact->tcpSocket, &QTcpSocket::disconnected, contact->tcpSocket, &QTcpSocket::deleteLater);
+                connect(contact->tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error), [this, contact, currentIndex]() {this->on_tcpSocketError(contact, currentIndex);});
+
+                ui->chatArea->appendPlainText("Подключено\n");
+
+                QMessageBox msgBox;
+                msgBox.setWindowTitle("Подключено");
+                msgBox.setText("Подключение к " + contact->socketString + " выполнено.");
+                msgBox.exec();
+            }
+            else {
+                ui->chatArea->appendPlainText("Ошибка подключения\n");
+
+                QString errorMessage = "Подключение к " + contact->socketString + " не выполнено.\n" + contact->tcpSocket->errorString();
+                QMessageBox::critical(this, "Ошибка подключения", errorMessage);
+                //contact->tcpSocket->disconnectFromHost();
+
+                delete contact->tcpSocket;
+                contact->tcpSocket = nullptr;
+            }
+        }
+        else if (contact->tcpSocket->state() == QAbstractSocket::ConnectedState) {  // Иначе, если сокет подключен, то просто отправляем сообщение
+            sendHistoryRequest(contact);
         }
     }
-    ui->connectionList->item(currentRow)->setText(contact->socketString);
+}
+
+void MainWindow::sendHistoryRequest(Contact* contact) {
+    QByteArray data;
+    QDataStream outStream(&data, QIODevice::ReadWrite);
+
+    outStream << quint32(0) << int(1);    // Заносим резерв под размер и тип сообщения 1 (т.е. отправка запроса истории)
+    outStream.device()->seek(0);    // Переносим указатель на место резерва
+    outStream << quint32(data.size() - sizeof(int) - sizeof(quint32)); // Заносим вместо резерва сам размер сообщения без учета резерва (размера) и типа сообщения
+    contact->tcpSocket->write(data);    // Отправляем собеседнику запрос
+}
+
+void MainWindow::sendHistory(Contact* contact) {
+    QByteArray data;
+    QDataStream outStream(&data, QIODevice::ReadWrite);
+
+    outStream << quint32(0) << int(2);    // Заносим резерв под размер и тип сообщения 2 (т.е. отправка истории)
+    outStream << contact->chatHistoryList.size();
+    for (auto& chatHistory : contact->chatHistoryList) {
+        outStream << chatHistory.isYourMessage << chatHistory.message;
+    }
+    outStream.device()->seek(0);    // Переносим указатель на место резерва
+    outStream << quint32(data.size() - sizeof(int) - sizeof(quint32)); // Заносим вместо резерва сам размер сообщения без учета резерва (размера) и типа сообщения
+    contact->tcpSocket->write(data);    // Отправляем собеседнику историю сообщений
 }

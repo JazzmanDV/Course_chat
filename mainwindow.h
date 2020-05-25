@@ -33,7 +33,7 @@ private slots:
 
     void on_newConnection();
     void on_addContact(QString ip, quint16 port);
-    void on_tcpSocketError(Contact* contact);
+    void on_tcpSocketError(Contact* contact, int row);
     void on_sendMessageBtn_clicked();
 
     void on_delAllContactsBtn_clicked();
@@ -42,13 +42,21 @@ private slots:
 
     void on_disconnectBtn_clicked();
 
+    void on_historyRequestBtn_clicked();
+    void on_readyRead(Contact* contact);
+
 private:
     Ui::MainWindow *ui;
 
     void setupServer();
     void addContactToUI(QString socketString);
     void sendMessage(Contact* contact, QString message);
-    void readMessage(Contact* contact);
+    void sendHistoryRequest(Contact* contact);
+    void sendHistory(Contact* contact);
+    void readMessage(Contact* contact, quint32 messageSize, QDataStream& inStream);
+    void readHistory(Contact* contact, quint32 messageSize, QDataStream& inStream);
+
+    void updateChatArea(QList<ChatHistory>& chatHistoryList);
 
     QTcpServer* mainTcpServer;
     QList<Contact*> contactList;
