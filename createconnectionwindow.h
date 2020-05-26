@@ -2,7 +2,8 @@
 #define CREATECONNECTIONWINDOW_H
 
 #include <QDialog>
-#include "Contact.h"
+//#include "Contact.h"
+#include <QHostAddress>
 
 namespace Ui {
 class CreateConnectionWindow;

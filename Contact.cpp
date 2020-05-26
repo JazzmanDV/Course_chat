@@ -1,4 +1,4 @@
-#include <Contact.h>
+#include "Contact.h"
 #include <QDataStream>
 
 Contact::Contact() {
@@ -15,14 +15,20 @@ Contact::Contact(QHostAddress serverIP, quint16 serverPort, QString socketString
 
 Contact::~Contact()
 {
-    if (tcpSocket != nullptr) {
-        delete tcpSocket;
-    }
+//    if (tcpSocket != nullptr) {
+//        delete tcpSocket;
+//    }
+    tcpSocket->disconnectFromHost();
 }
 
 void Contact::setTcpSocket(QTcpSocket *socket)
 {
     this->tcpSocket = socket;
+}
+
+QTcpSocket *Contact::getTcpSocket()
+{
+    return tcpSocket;
 }
 
 QHostAddress Contact::getServerIP() const
@@ -83,9 +89,30 @@ void Contact::deleteTcpSocket()
     }
 }
 
-void Contact::sendMessage(QString message)
+int Contact::sendMessage(QString message)
 {
-    if (isConnected()) {
+    if (tcpSocket == nullptr) {    // Если это первая попытка подключения, то нужно выделить память под сокет
+        tcpSocket = new QTcpSocket();
+    }
+    if (tcpSocket->state() != QAbstractSocket::ConnectedState && tcpSocket->state() != QAbstractSocket::UnconnectedState) {   // Если сокет не подключен, но и не отключен, то значит, что мы недавно отключались и память была очищена
+        tcpSocket = new QTcpSocket();
+    }
+    if (tcpSocket->state() != QAbstractSocket::ConnectedState) {   // Если сокет не подключен, то подключаемся (без отправки сообщения). Иначе, если сокет подключен, то просто отправляем сообщение
+        QHostAddress ip = serverIP;
+        quint16 port = serverPort;
+
+        tcpSocket->connectToHost(ip, port);
+        if (tcpSocket->waitForConnected(3000)) {   // Если мы подключились в течение 3 секунд, то выводим сообщение об успехе, иначе - об ошибке
+            return 0;
+        }
+        else {
+            //contact->tcpSocket->disconnectFromHost();
+            delete tcpSocket;
+            tcpSocket = nullptr;
+            return 1;
+        }
+    }
+    else if (isConnected()) {
         QByteArray data;
         QDataStream outStream(&data, QIODevice::ReadWrite);
 
@@ -97,12 +124,35 @@ void Contact::sendMessage(QString message)
 
         ChatHistory chatHistory {true, message};
         chatHistoryList.push_back(chatHistory);
+
+        return 2;
     }
 }
 
-void Contact::sendHistoryRequest()
+int Contact::sendHistoryRequest()
 {
-    if (isConnected())  {
+    if (tcpSocket == nullptr) {    // Если это первая попытка подключения, то нужно выделить память под сокет
+        tcpSocket = new QTcpSocket();
+    }
+    if (tcpSocket->state() != QAbstractSocket::ConnectedState && tcpSocket->state() != QAbstractSocket::UnconnectedState) {   // Если сокет не подключен, но и не отключен, то значит, что мы недавно отключались и память была очищена
+        tcpSocket = new QTcpSocket();
+    }
+    if (tcpSocket->state() != QAbstractSocket::ConnectedState) {   // Если сокет не подключен, то подключаемся (без отправки сообщения). Иначе, если сокет подключен, то просто отправляем сообщение
+        QHostAddress ip = serverIP;
+        quint16 port = serverPort;
+
+        tcpSocket->connectToHost(ip, port);
+        if (tcpSocket->waitForConnected(3000)) {   // Если мы подключились в течение 3 секунд, то выводим сообщение об успехе, иначе - об ошибке
+            return 0;
+        }
+        else {
+            //contact->tcpSocket->disconnectFromHost();
+            delete tcpSocket;
+            tcpSocket = nullptr;
+            return 1;
+        }
+    }
+    else if (isConnected())  {
         QByteArray data;
         QDataStream outStream(&data, QIODevice::ReadWrite);
 
@@ -130,7 +180,7 @@ void Contact::sendHistory()
     }
 }
 
-void Contact::readData()
+int Contact::readData()
 {
     QDataStream inStream(tcpSocket);
 
@@ -140,12 +190,15 @@ void Contact::readData()
 
     if (dataType == 0) {  // Если обычное сообщение, то читаем его
         readMessage(messageSize, inStream);
+        return 0;
     }
     else if (dataType == 1) {    // Если нам пришел запрос истории, то отправляем историю
         sendHistory();
+        return 1;
     }
     else if (dataType == 2) {    // Если нам пришла история по нашему запросу истории, то читаем историю
         readHistory(messageSize, inStream);
+        return 2;
     }
 }
 
@@ -190,8 +243,6 @@ void Contact::readMessage(quint32 messageSize, QDataStream &inStream)
 
     ChatHistory chatHistory {false, message};
     chatHistoryList.push_back(chatHistory);
-
-    emit updateReceiveMessageNotification(this, message);   // Обновляем UI (выводим полученное сообщение, если текущий контакт выбран, иначе добавляем звездочку к имени контакта)
 }
 
 void Contact::readHistory(quint32 messageSize, QDataStream &inStream)
@@ -212,8 +263,6 @@ void Contact::readHistory(quint32 messageSize, QDataStream &inStream)
         chatHistory.isYourMessage = !chatHistory.isYourMessage; // инвертируем, т.к. для нас этот флаг должен быть обратным
         chatHistoryList.push_back(chatHistory);
     }
-
-    emit updateChatArea(this);
 }
 
 bool Contact::isConnected() const
@@ -225,4 +274,8 @@ bool Contact::isConnected() const
         }
     }
     return res;
+}
+
+QString Contact::getErrorString() {
+    return tcpSocket->errorString();
 }

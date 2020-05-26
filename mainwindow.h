@@ -39,14 +39,9 @@ private slots:
     void on_sendMessageBtn_clicked();
 
     void on_readyRead(Contact* contact);
-
-    void on_updateReceiveMessageNotification(Contact* contact, QString message);
-    void on_updateChatArea(Contact* contact);
-
     void on_tcpSocketError(Contact* contact, int row); 
 
     void on_disconnectBtn_clicked();
-
     void on_historyRequestBtn_clicked();
 
 private:
@@ -57,6 +52,7 @@ private:
     void saveToFile();
 
     void addContactToUI(QString socketString);
+    void updateChatArea(QList<ChatHistory> chatHistoryList);
 
     QTcpServer* mainTcpServer;
     QList<Contact*> contactList;

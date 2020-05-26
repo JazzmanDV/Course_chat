@@ -43,7 +43,7 @@
     </property>
     <property name="text">
      <string>Добавить
-соединение</string>
+контакт</string>
     </property>
     <property name="flat">
      <bool>false</bool>
@@ -60,7 +60,7 @@
     </property>
     <property name="text">
      <string>Удалить
-соденинение</string>
+контакт</string>
     </property>
    </widget>
    <widget class="QPushButton" name="delAllContactsBtn">
@@ -74,7 +74,7 @@
     </property>
     <property name="text">
      <string>Удалить все
-соединения</string>
+контакты</string>
     </property>
    </widget>
    <widget class="QPushButton" name="sendMessageBtn">

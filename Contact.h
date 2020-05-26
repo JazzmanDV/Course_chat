@@ -49,16 +49,15 @@ public:
 
     void disconnectFromHost();
     void deleteTcpSocket();
-    void sendMessage(QString message);
-    void sendHistoryRequest();
 
-    void readData();
+    int sendMessage(QString message);
+    int sendHistoryRequest();
+
+    int readData();
 
     bool isConnected() const;
 
-signals:
-    void updateReceiveMessageNotification(Contact* contact, QString message);
-    void updateChatArea(Contact* contact);
+    QString getErrorString();
 };
 
 #endif // CONTACT_H

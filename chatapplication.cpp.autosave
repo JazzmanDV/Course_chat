@@ -1,0 +1,11 @@
+#include "chatapplication.h"
+
+ChatApplication::ChatApplication()
+{
+}
+
+ChatApplication& ChatApplication::getInstance()
+{
+    static ChatApplication instance;
+    return instance;
+}

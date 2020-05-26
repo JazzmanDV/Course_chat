@@ -18,12 +18,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     Contact.cpp \
+    chatapplication.cpp \
     createconnectionwindow.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
     Contact.h \
+    chatapplication.h \
     createconnectionwindow.h \
     mainwindow.h
 
