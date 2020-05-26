@@ -2,7 +2,7 @@
 #define CREATECONNECTIONWINDOW_H
 
 #include <QDialog>
-#include "TcpConnection.h"
+#include "Contact.h"
 
 namespace Ui {
 class CreateConnectionWindow;
@@ -21,7 +21,7 @@ private slots:
     void on_okCancelBtn_rejected();
 
 signals:
-    void addContact(QString ip, quint16 port);
+    void addContact(QHostAddress serverIP, quint16 serverPort);
 
 private:
     Ui::CreateConnectionWindow *ui;
