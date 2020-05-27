@@ -10,9 +10,6 @@ Contact::Contact(QHostAddress serverIP, quint16 serverPort, QString socketString
 }
 
 Contact::~Contact() {
-//    if (tcpSocket != nullptr) {
-//        delete tcpSocket;
-//    }
     if (tcpSocket != nullptr) {
         tcpSocket->disconnectFromHost();
     }

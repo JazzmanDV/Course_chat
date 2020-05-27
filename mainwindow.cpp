@@ -169,8 +169,6 @@ void MainWindow::on_newConnection() {
     int row = contactList.indexOf(contact);
 
     connect(contact->getTcpSocket(), &QTcpSocket::readyRead, [this, contact]() {this->on_readyRead(contact);});
-    //connect(contact->tcpSocket, &QTcpSocket::disconnected, [this, contact, row]() {this->on_disconnected(contact, row);});
-    //connect(contact->tcpSocket, &QTcpSocket::disconnected, contact->tcpSocket, &QTcpSocket::deleteLater);
     connect(contact->getTcpSocket(), QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error), [this, contact, row]() {this->on_tcpSocketError(contact, row);});
 
     if (ui->connectionList->currentRow() == row) {  // Если текущий контакт выделен, то добавляем в окно переписки "Подключено"
@@ -212,24 +210,21 @@ void MainWindow::on_addContact(QHostAddress serverIP, quint16 serverPort) {
 }
 
 void MainWindow::on_delContactBtn_clicked() {
-    int currentIndex = ui->connectionList->currentIndex().row();
+    int currentIndex = ui->connectionList->currentRow();
     auto& contactList = ChatApplication::getInstance().getContactList();
     Contact* contact = contactList.at(currentIndex);
 
     if (currentIndex != -1) {   // Если выбран какой-то из контактов, то отключаемся от хоста и освобождаем память
-        //contact->disconnectFromHost();  // TODO: возможно не нужно
-        delete contact;
-        contactList.removeAt(currentIndex);
-
         delete ui->connectionList->takeItem(currentIndex);
         ui->chatArea->clear();
+        delete contact;
+        contactList.removeAt(currentIndex);
     }
 }
 
 void MainWindow::on_delAllContactsBtn_clicked() {
     auto& contactList = ChatApplication::getInstance().getContactList();
     for (auto& contact : contactList) {
-        //contact->disconnectFromHost();  // TODO: возможно не нужно
         delete contact;
         contactList.removeOne(contact);
     }
@@ -281,8 +276,6 @@ void MainWindow::on_sendMessageBtn_clicked() {
 
         if (status == 0) {
             connect(contact->getTcpSocket(), &QTcpSocket::readyRead, [this, contact]() {this->on_readyRead(contact);});
-            //connect(contact->tcpSocket, &QTcpSocket::disconnected, [this, contact, row]() {this->on_disconnected(contact, row);});
-            //connect(contact->tcpSocket, &QTcpSocket::disconnected, contact->tcpSocket, &QTcpSocket::deleteLater);
             connect(contact->getTcpSocket(), QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error), [this, contact, currentIndex]() {this->on_tcpSocketError(contact, currentIndex);});
 
             ui->connectionList->item(currentIndex)->setText(contact->getSocketString() + " (подключено)");
@@ -303,6 +296,9 @@ void MainWindow::on_sendMessageBtn_clicked() {
             ui->inputArea->clear(); // Очищаем окно ввода сообщений
         }
     }
+    else if (message == "") {
+        QMessageBox::critical(this, "Ошибка отправки сообщения", "Сообщение не может быть пустым");
+    }
 }
 
 void MainWindow::on_historyRequestBtn_clicked() {
@@ -315,8 +311,6 @@ void MainWindow::on_historyRequestBtn_clicked() {
 
         if (status == 0) {
             connect(contact->getTcpSocket(), &QTcpSocket::readyRead, [this, contact]() {this->on_readyRead(contact);});
-            //connect(contact->tcpSocket, &QTcpSocket::disconnected, [this, contact, row]() {this->on_disconnected(contact, row);});
-            //connect(contact->tcpSocket, &QTcpSocket::disconnected, contact->tcpSocket, &QTcpSocket::deleteLater);
             connect(contact->getTcpSocket(), QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error), [this, contact, currentIndex]() {this->on_tcpSocketError(contact, currentIndex);});
 
             ui->connectionList->item(currentIndex)->setText(contact->getSocketString() + " (подключено)");

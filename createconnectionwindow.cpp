@@ -15,8 +15,10 @@ CreateConnectionWindow::~CreateConnectionWindow()
 
 void CreateConnectionWindow::on_okCancelBtn_accepted()
 {
-    emit addContact(QHostAddress(this->ui->IPLine->text()), this->ui->PortLine->text().toUInt()); // Подаём сигнал addContact, чтобы вызвать функцию MainWindow::on_addContact
-    this->~CreateConnectionWindow();
+    if (this->ui->IPLine->text() != "" && this->ui->PortLine->text() != "") {
+        emit addContact(QHostAddress(this->ui->IPLine->text()), this->ui->PortLine->text().toUInt()); // Подаём сигнал addContact, чтобы вызвать функцию MainWindow::on_addContact
+        this->~CreateConnectionWindow();
+    }
 }
 
 void CreateConnectionWindow::on_okCancelBtn_rejected()
