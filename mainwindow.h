@@ -53,9 +53,6 @@ private:
 
     void addContactToUI(QString socketString);
     void updateChatArea(QList<ChatHistory> chatHistoryList);
-
-    QTcpServer* mainTcpServer;
-    QList<Contact*> contactList;
 };
 
 #endif // MAINWINDOW_H

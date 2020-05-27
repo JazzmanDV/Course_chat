@@ -1,10 +1,6 @@
 #include "Contact.h"
 #include <QDataStream>
 
-Contact::Contact() {
-    tcpSocket = nullptr;
-}
-
 Contact::Contact(QHostAddress serverIP, quint16 serverPort, QString socketString) {
     tcpSocket = nullptr;
 
@@ -13,61 +9,52 @@ Contact::Contact(QHostAddress serverIP, quint16 serverPort, QString socketString
     this->socketString = socketString;
 }
 
-Contact::~Contact()
-{
+Contact::~Contact() {
 //    if (tcpSocket != nullptr) {
 //        delete tcpSocket;
 //    }
-    tcpSocket->disconnectFromHost();
+    if (tcpSocket != nullptr) {
+        tcpSocket->disconnectFromHost();
+    }
 }
 
-void Contact::setTcpSocket(QTcpSocket *socket)
-{
+void Contact::setTcpSocket(QTcpSocket *socket) {
     this->tcpSocket = socket;
 }
 
-QTcpSocket *Contact::getTcpSocket()
-{
+QTcpSocket *Contact::getTcpSocket() {
     return tcpSocket;
 }
 
-QHostAddress Contact::getServerIP() const
-{
+QHostAddress Contact::getServerIP() const {
     return serverIP;
 }
 
-void Contact::setServerIP(const QHostAddress &serverIP)
-{
+void Contact::setServerIP(const QHostAddress &serverIP) {
     this->serverIP = serverIP;
 }
 
-quint16 Contact::getServerPort() const
-{
+quint16 Contact::getServerPort() const {
     return serverPort;
 }
 
-void Contact::setServerPort(const quint16 &serverPort)
-{
+void Contact::setServerPort(const quint16 &serverPort) {
     this->serverPort = serverPort;
 }
 
-QString Contact::getSocketString() const
-{
+QString Contact::getSocketString() const {
     return socketString;
 }
 
-void Contact::setSocketString(const QString &socketString)
-{
+void Contact::setSocketString(const QString &socketString) {
     this->socketString = socketString;
 }
 
-QList<ChatHistory> Contact::getChatHistoryList() const
-{
+QList<ChatHistory> Contact::getChatHistoryList() const {
     return chatHistoryList;
 }
 
-void Contact::setChatHistoryList(const QList<ChatHistory> &chatHistoryList)
-{
+void Contact::setChatHistoryList(const QList<ChatHistory> &chatHistoryList) {
     this->chatHistoryList = chatHistoryList;
 }
 
@@ -75,22 +62,18 @@ void Contact::addChatHistory(ChatHistory chatHistory) {
     this->chatHistoryList.push_back(chatHistory);
 }
 
-void Contact::disconnectFromHost()
-{
+void Contact::disconnectFromHost() {
     tcpSocket->disconnectFromHost();
-    //tcpSocket->deleteLater();
 }
 
-void Contact::deleteTcpSocket()
-{
+void Contact::deleteTcpSocket() {
     if (tcpSocket != nullptr) {
         delete tcpSocket;
         tcpSocket = nullptr;
     }
 }
 
-int Contact::sendMessage(QString message)
-{
+int Contact::sendMessage(QString message) {
     if (tcpSocket == nullptr) {    // Если это первая попытка подключения, то нужно выделить память под сокет
         tcpSocket = new QTcpSocket();
     }
@@ -129,8 +112,7 @@ int Contact::sendMessage(QString message)
     }
 }
 
-int Contact::sendHistoryRequest()
-{
+int Contact::sendHistoryRequest() {
     if (tcpSocket == nullptr) {    // Если это первая попытка подключения, то нужно выделить память под сокет
         tcpSocket = new QTcpSocket();
     }
@@ -163,8 +145,7 @@ int Contact::sendHistoryRequest()
     }
 }
 
-void Contact::sendHistory()
-{
+void Contact::sendHistory() {
     if (isConnected())  {
         QByteArray data;
         QDataStream outStream(&data, QIODevice::ReadWrite);
@@ -180,8 +161,7 @@ void Contact::sendHistory()
     }
 }
 
-int Contact::readData()
-{
+int Contact::readData() {
     QDataStream inStream(tcpSocket);
 
     quint32 messageSize = readMessageSize(inStream);
@@ -200,10 +180,13 @@ int Contact::readData()
         readHistory(messageSize, inStream);
         return 2;
     }
+    else {
+        qDebug() << "Прочитан несуществующий тип сообщения";
+        return -1;
+    }
 }
 
-quint32 Contact::readMessageSize(QDataStream& inStream)
-{
+quint32 Contact::readMessageSize(QDataStream& inStream) {
     while (tcpSocket->bytesAvailable() < qint64(sizeof(quint32))) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать размер сообщения
         if (!tcpSocket->waitForReadyRead()) {  // Если не готовы для чтения, то выходим
             return -1;
@@ -216,8 +199,7 @@ quint32 Contact::readMessageSize(QDataStream& inStream)
     return messageSize;
 }
 
-int Contact::readDataType(QDataStream& inStream)
-{
+int Contact::readDataType(QDataStream& inStream) {
     while (tcpSocket->bytesAvailable() < qint64(sizeof(int))) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать тип сообщения
         if (!tcpSocket->waitForReadyRead()) {
             return -1;
@@ -230,8 +212,7 @@ int Contact::readDataType(QDataStream& inStream)
     return dataType;
 }
 
-void Contact::readMessage(quint32 messageSize, QDataStream &inStream)
-{
+void Contact::readMessage(quint32 messageSize, QDataStream &inStream) {
     while (tcpSocket->bytesAvailable() < qint64(messageSize)) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать сообщение целиком
         if (!tcpSocket->waitForReadyRead()) {
             return;
@@ -245,8 +226,7 @@ void Contact::readMessage(quint32 messageSize, QDataStream &inStream)
     chatHistoryList.push_back(chatHistory);
 }
 
-void Contact::readHistory(quint32 messageSize, QDataStream &inStream)
-{
+void Contact::readHistory(quint32 messageSize, QDataStream &inStream) {
     while (tcpSocket->bytesAvailable() < qint64(messageSize)) {    // Ожидаем, пока кол-во доступных для чтения байтов будет достаточно, чтобы прочитать сообщение целиком
         if (!tcpSocket->waitForReadyRead()) {
             return;
@@ -265,8 +245,7 @@ void Contact::readHistory(quint32 messageSize, QDataStream &inStream)
     }
 }
 
-bool Contact::isConnected() const
-{
+bool Contact::isConnected() const {
     bool res = false;
     if (tcpSocket != nullptr) {
         if (tcpSocket->state() == QAbstractSocket::ConnectedState) {

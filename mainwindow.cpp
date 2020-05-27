@@ -2,6 +2,7 @@
 #include "ui_mainwindow.h"
 #include <QException>
 #include <QDir>
+#include <chatapplication.h>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) , ui(new Ui::MainWindow) {
     ui->setupUi(this);  
@@ -11,16 +12,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) , ui(new Ui::MainW
 }
 
 MainWindow::~MainWindow() {
-    delete mainTcpServer;
+    //delete mainTcpServer;
     delete ui;
 
     saveToFile();
 }
 
 void MainWindow::setupServer() {
-    mainTcpServer = new QTcpServer(this);   // Создаём переменную сервера
-    if (!mainTcpServer->listen(QHostAddress::Any, 64000)) {   // Если сервер не может слушать, то выводим ошибку и закрываем приложение
-        QMessageBox::critical(this, tr("Ошибка старта сервера"), tr("Невозможно запустить серверную часть: %1.").arg(mainTcpServer->errorString()));
+    QTcpServer& mainTcpServer = ChatApplication::getInstance().getMainTcpServer();
+
+    //mainTcpServer = new QTcpServer(this);   // Создаём переменную сервера
+    if (!mainTcpServer.listen(QHostAddress::Any, 64000)) {   // Если сервер не может слушать, то выводим ошибку и закрываем приложение
+        QMessageBox::critical(this, tr("Ошибка старта сервера"), tr("Невозможно запустить серверную часть: %1.").arg(mainTcpServer.errorString()));
         close();
         exit(1);
     }
@@ -39,9 +42,9 @@ void MainWindow::setupServer() {
         mainServerIP = QHostAddress(QHostAddress::LocalHost);
     }
 
-    quint16 mainServerPort = mainTcpServer->serverPort();
+    quint16 mainServerPort = mainTcpServer.serverPort();
     ui->yourIPLabel->setText("Ваш IP: " + mainServerIP.toString() + ":" + QString::number(mainServerPort));
-    connect(mainTcpServer, &QTcpServer::newConnection, this, &MainWindow::on_newConnection);    // Соединяем нашу серверную часть с сигналом о том, что поступило новое соединение
+    connect(&mainTcpServer, &QTcpServer::newConnection, this, &MainWindow::on_newConnection);    // Соединяем нашу серверную часть с сигналом о том, что поступило новое соединение
 }
 
 void MainWindow::loadFromFile() {
@@ -82,7 +85,7 @@ void MainWindow::loadFromFile() {
                 contact->addChatHistory(chatHistory);
             }
 
-            contactList.push_back(contact);
+            ChatApplication::getInstance().getContactList().push_back(contact);
 
             addContactToUI(socketString);
             file.close();
@@ -109,7 +112,7 @@ void MainWindow::saveToFile() {
         exit(1);
     }
 
-    for (auto& contact : contactList) {
+    for (auto& contact : ChatApplication::getInstance().getContactList()) {
         QString serverIP = contact->getServerIP().toString();
         QString serverPort = QString::number(contact->getServerPort());
         QString fileName = "Database/" + serverIP + " " + serverPort + ".dat";
@@ -136,10 +139,11 @@ void MainWindow::saveToFile() {
 }
 
 void MainWindow::on_newConnection() {
-    QTcpSocket *newConnection = mainTcpServer->nextPendingConnection(); // Сохраняем новое подключение в переменную
+    QTcpSocket *newConnection = ChatApplication::getInstance().getMainTcpServer().nextPendingConnection(); // Сохраняем новое подключение в переменную
 
     Contact* contact = nullptr;
     bool isContactExists = false;
+    auto& contactList = ChatApplication::getInstance().getContactList();
     for (int i = 0; i < contactList.size(); i++) {  // Поиск, существует ли уже запись для такого адреса
         Contact* tempContact = contactList.at(i);
         QString tempPeerAddress = "::ffff:" + tempContact->getServerIP().toString();
@@ -193,6 +197,7 @@ void MainWindow::on_addContactBtn_clicked() {
 void MainWindow::on_addContact(QHostAddress serverIP, quint16 serverPort) {
     QString socketString = serverIP.toString() + ":" + QString::number(serverPort);
 
+    auto& contactList = ChatApplication::getInstance().getContactList();
     for (auto& contact : contactList) {
         if (contact->getSocketString() == socketString) {
             QMessageBox::critical(this, "Ошибка добавления контакта.", "Такой контакт уже существует.");
@@ -208,6 +213,7 @@ void MainWindow::on_addContact(QHostAddress serverIP, quint16 serverPort) {
 
 void MainWindow::on_delContactBtn_clicked() {
     int currentIndex = ui->connectionList->currentIndex().row();
+    auto& contactList = ChatApplication::getInstance().getContactList();
     Contact* contact = contactList.at(currentIndex);
 
     if (currentIndex != -1) {   // Если выбран какой-то из контактов, то отключаемся от хоста и освобождаем память
@@ -221,6 +227,7 @@ void MainWindow::on_delContactBtn_clicked() {
 }
 
 void MainWindow::on_delAllContactsBtn_clicked() {
+    auto& contactList = ChatApplication::getInstance().getContactList();
     for (auto& contact : contactList) {
         //contact->disconnectFromHost();  // TODO: возможно не нужно
         delete contact;
@@ -233,6 +240,7 @@ void MainWindow::on_delAllContactsBtn_clicked() {
 
 void MainWindow::on_connectionList_currentItemChanged(QListWidgetItem *currentItem) {
     int currentIndex = ui->connectionList->currentRow();
+    auto& contactList = ChatApplication::getInstance().getContactList();
     if (currentIndex != -1) {   // Если выбран какой-то из контактов
         Contact* contact = contactList.at(currentIndex);
 
@@ -267,6 +275,7 @@ void MainWindow::on_sendMessageBtn_clicked() {
     int currentIndex = ui->connectionList->currentRow();
 
     if (message != "" && currentIndex != -1) {    // Если отправляемое сообщение не пустое и был выделен какой-либо контакт
+        auto& contactList = ChatApplication::getInstance().getContactList();
         Contact* contact = contactList.at(currentIndex);
         int status = contact->sendMessage(message);
 
@@ -300,6 +309,7 @@ void MainWindow::on_historyRequestBtn_clicked() {
     int currentIndex = ui->connectionList->currentRow();
 
     if (currentIndex != -1) {
+        auto& contactList = ChatApplication::getInstance().getContactList();
         Contact* contact = contactList.at(currentIndex);
         int status = contact->sendHistoryRequest();
 
@@ -346,6 +356,7 @@ void MainWindow::on_tcpSocketError(Contact* contact, int row) {
 void MainWindow::on_readyRead(Contact* contact) {
     int dataType = contact->readData();
 
+    auto& contactList = ChatApplication::getInstance().getContactList();
     if (dataType == 0) {
         int senderIndex = contactList.indexOf(contact);
         if (senderIndex == ui->connectionList->currentRow()) {  // Если нужное окно с чатом открыто, то добавляем сообщение в чат, иначе включаем индикацию нового сообщения
@@ -369,6 +380,7 @@ void MainWindow::on_readyRead(Contact* contact) {
 void MainWindow::on_disconnectBtn_clicked() {
     int currentRow = ui->connectionList->currentRow();
     if (currentRow != -1) { // Если выбран какой-либо контакт
+        auto& contactList = ChatApplication::getInstance().getContactList();
         Contact* contact = contactList.at(currentRow);
         if (contact->isConnected()) {    // Если выбранный сокет находится в подключенном состоянии, то отключаем
             contact->disconnectFromHost();

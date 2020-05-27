@@ -1,15 +1,17 @@
 #include "chatapplication.h"
 
-ChatApplication* ChatApplication::p_instance = nullptr;
-
-ChatApplication::ChatApplication()
-{
+ChatApplication::ChatApplication() {
 }
 
-ChatApplication* ChatApplication::getInstance()
-{
-    if (p_instance == nullptr) {
-        p_instance = new ChatApplication();
-    }
-    return p_instance;
+ChatApplication& ChatApplication::getInstance() {
+    static ChatApplication instance;
+    return instance;
+}
+
+QTcpServer& ChatApplication::getMainTcpServer() {
+    return mainTcpServer;
+}
+
+QList<Contact *>& ChatApplication::getContactList() {
+    return contactList;
 }

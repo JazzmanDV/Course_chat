@@ -26,7 +26,7 @@ private:
     void sendHistory();
 
 public:
-    Contact();
+    Contact() = delete;
     Contact(QHostAddress serverIP, quint16 serverPort, QString socketString);
     ~Contact();
 

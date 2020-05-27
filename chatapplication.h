@@ -17,7 +17,8 @@ private:
     QList<Contact*> contactList;
 public:
     static ChatApplication& getInstance();
-    static int setMainTcpServer();
+    QTcpServer& getMainTcpServer();
+    QList<Contact*>& getContactList();
 };
 
 #endif // CHATAPPLICATION_H
